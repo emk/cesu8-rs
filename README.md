@@ -1,3 +1,11 @@
+# CESU-8 encoder/decoder for Rust
+
+[![Build Status](https://travis-ci.org/emk/cesu8-rs.svg)](https://travis-ci.org/emk/cesu8-rs)
+
+[Documentation][apidoc].
+
+[apidoc]: http://www.rust-ci.org/emk/cesu8-rs/doc/cesu8/
+
 Convert between ordinary UTF-8 and [CESU-8][] encodings.
 
 CESU-8 encodes characters outside the Basic Multilingual Plane as two
@@ -14,7 +22,7 @@ Supplementary Multilingual Plane or the Supplementary Ideographic Plane.
 
 [CESU-8]: http://www.unicode.org/reports/tr26/tr26-2.html
 
-### License
+## License
 
 Some of this code is adapted from Rust's [`src/libcore/str.rs` file][str.rs].
 This code is covered by LICENSE-RUST.txt and copyright by The Rust Project
