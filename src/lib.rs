@@ -73,7 +73,13 @@ use std::error::Error;
 use std::result::Result;
 use std::slice;
 use std::str::CowString;
-use std::str::{from_utf8, is_utf8, utf8_char_width};
+use std::str::{from_utf8, is_utf8, utf8_char_width, from_utf8_unchecked};
+use std::vec::CowVec;
+
+/// Mask of the value bits of a continuation byte.
+const CONT_MASK: u8 = 0b0011_1111u8;
+/// Value of the tag bits (tag mask is !CONT_MASK) of a continuation byte.
+const TAG_CONT_U8: u8 = 0b1000_0000u8;
 
 /// The CESU-8 data could not be decoded as valid UTF-8 data.
 #[deriving(Show)]
@@ -145,11 +151,6 @@ fn test_from_cesu8() {
     // Since I can't reconcile this example data with the text of the
     // specification, I decided to use a test character from ICU instead.
 }
-
-/// Mask of the value bits of a continuation byte
-const CONT_MASK: u8 = 0b0011_1111u8;
-/// Value of the tag bits (tag mask is !CONT_MASK) of a continuation byte
-const TAG_CONT_U8: u8 = 0b1000_0000u8;
 
 // Our internal decoder, based on Rust's is_utf8 implementation.
 fn decode_from_iter(decoded: &mut Vec<u8>, iter: &mut slice::Items<u8>) -> bool {
@@ -243,4 +244,74 @@ fn dec_surrogates(second: u8, third: u8, fifth: u8, sixth: u8) -> [u8, ..4] {
      TAG_CONT_U8   | ((c & 0b0_0011_1111_0000_0000_0000) >> 12) as u8,
      TAG_CONT_U8   | ((c & 0b0_0000_0000_1111_1100_0000) >>  6) as u8,
      TAG_CONT_U8   | ((c & 0b0_0000_0000_0000_0011_1111)      ) as u8]
+}
+
+/// Convert a Rust `&str` to CESU-8 bytes.
+///
+/// ```
+/// use std::borrow::Cow;
+/// use cesu8::to_cesu8;
+///
+/// // This string is valid as UTF-8 or CESU-8, so it doesn't change,
+/// // and we can convert it without allocating memory.
+/// assert_eq!(Cow::Borrowed("aé日".as_bytes()), to_cesu8("aé日"));
+///
+/// // This string is a 4-byte UTF-8 string, which becomes a 6-byte CESU-8
+/// // vector.
+/// assert_eq!(Cow::Borrowed([0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81].as_slice()),
+///            to_cesu8("\U00010401"));
+/// ```
+pub fn to_cesu8(text: &str) -> CowVec<u8> {
+    if is_valid_cesu8(text) {
+        Cow::Borrowed(text.as_bytes())
+    } else {
+        let bytes = text.as_bytes();
+        let mut encoded = Vec::with_capacity(bytes.len() + bytes.len() >> 2);
+        let mut i = 0;
+        while i < bytes.len() {
+            let b = bytes[i];
+            if b < 128 {
+                // Pass ASCII through quickly.
+                encoded.push(b);
+                i += 1;
+            } else {
+                // Figure out how many bytes we need for this character.
+                let w = utf8_char_width(b);
+                assert!(w <= 4);
+                assert!(i + w <= bytes.len());
+                if w != 4 {
+                    // Pass through short UTF-8 sequences unmodified.
+                    encoded.push_all(bytes.slice(i, i+w));
+                } else {
+                    // Encode 4-byte sequences as 6 bytes.
+                    let s = unsafe { from_utf8_unchecked(bytes.slice(i, i+w)) };
+                    for u in s.utf16_units() {
+                        encoded.push_all(&enc_surrogate(u))
+                    }
+                }
+                i += w;
+            }
+        }
+        Cow::Owned(encoded)
+    }
+}
+
+/// Check whether we can pass this data through unchanged.
+pub fn is_valid_cesu8(text: &str) -> bool {
+    // We rely on the fact that Rust strings are guaranteed to be valid
+    // UTF-8.
+    for b in text.bytes() {
+        if (b & !CONT_MASK) == TAG_CONT_U8 { continue; }
+        if utf8_char_width(b) > 3 { return false; }
+    }
+    true
+}
+
+/// Encode a single surrogate as CESU-8.
+fn enc_surrogate(surrogate: u16) -> [u8, ..3] {
+    assert!(0xD800 <= surrogate && surrogate <= 0xDFFF);
+    // 1110xxxx 10xxxxxx 10xxxxxx
+    [0b11100000  | ((surrogate & 0b11110000_00000000) >> 12) as u8,
+     TAG_CONT_U8 | ((surrogate & 0b00001111_11000000) >>  6) as u8,
+     TAG_CONT_U8 | ((surrogate & 0b00000000_00111111)      ) as u8]
 }

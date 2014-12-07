@@ -1,11 +1,16 @@
-Convert between ordinary UTF-8 data, and data encoded as [CESU-8][], which
-encodes characters outside the Basic Multilingual Plane as two UTF-16
-surrogate chacaters, which are then further re-encoded as invalid, 3-byte
-UTF-8 characters.  This means that 4-byte UTF-8 sequences become 6-byte
-CESU-8 sequences.
+Convert between ordinary UTF-8 and [CESU-8][] encodings.
+
+CESU-8 encodes characters outside the Basic Multilingual Plane as two
+UTF-16 surrogate chacaters, which are then further re-encoded as invalid,
+3-byte UTF-8 characters.  This means that 4-byte UTF-8 sequences become
+6-byte CESU-8 sequences.
 
 **Note that CESU-8 is only intended for internal use within tightly-coupled
 systems, and not for data interchange.**
+
+This encoding is sometimes needed when working with Java, Oracle or MySQL,
+and when trying to store emoji, hieroglyphs, or other characters on the
+Supplementary Multilingual Plane or the Supplementary Ideographic Plane.
 
 [CESU-8]: http://www.unicode.org/reports/tr26/tr26-2.html
 
