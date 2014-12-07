@@ -233,9 +233,9 @@ fn dec_surrogates(second: u8, third: u8, fifth: u8, sixth: u8) -> [u8, ..4] {
     let s1 = dec_surrogate(second, third);
     let s2 = dec_surrogate(fifth, sixth);
     let c = 0x10000 + (((s1 - 0xD800) << 10) | (s2 - 0xDC00));
-    println!("{:0>8b} {:0>8b} {:0>8b} -> {:0>16b}", 0xEDu8, second, third, s1);
-    println!("{:0>8b} {:0>8b} {:0>8b} -> {:0>16b}", 0xEDu8, fifth, sixth, s2);
-    println!("-> {:0>32b}", c);
+    //println!("{:0>8b} {:0>8b} {:0>8b} -> {:0>16b}", 0xEDu8, second, third, s1);
+    //println!("{:0>8b} {:0>8b} {:0>8b} -> {:0>16b}", 0xEDu8, fifth, sixth, s2);
+    //println!("-> {:0>32b}", c);
     assert!(0x010000 <= c && c <= 0x10FFFF);
 
     // Convert to UTF-8.
