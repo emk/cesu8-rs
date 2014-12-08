@@ -18,6 +18,23 @@
 //! for working with existing internal APIs, but it should not be used for
 //! transmitting or storing data.
 //!
+//! ```
+//! use std::borrow::Cow;
+//! use cesu8::{from_cesu8, to_cesu8};
+//!
+//! // 16-bit Unicode characters are the same in UTF-8 and CESU-8.
+//! assert_eq!(Cow::Borrowed("aé日".as_bytes()),
+//!            to_cesu8("aé日"));
+//! assert_eq!(Cow::Borrowed("aé日"),
+//!            from_cesu8("aé日".as_bytes()).unwrap());
+//!
+//! // This string is CESU-8 data containing a 6-byte surrogate pair,
+//! // which decodes to a 4-byte UTF-8 string.
+//! let data = &[0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81];
+//! assert_eq!(Cow::Borrowed("\U00010401"),
+//!            from_cesu8(data).unwrap());
+//! ```
+//!
 //! ### A note about security
 //!
 //! As a general rule, this library is intended to fail on malformed or
@@ -296,7 +313,7 @@ pub fn to_cesu8(text: &str) -> CowVec<u8> {
     }
 }
 
-/// Check whether we can pass this data through unchanged.
+/// Check whether a Rust string contains valid CESU-8 data.
 pub fn is_valid_cesu8(text: &str) -> bool {
     // We rely on the fact that Rust strings are guaranteed to be valid
     // UTF-8.
