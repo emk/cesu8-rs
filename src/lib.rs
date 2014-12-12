@@ -31,7 +31,7 @@
 //! // This string is CESU-8 data containing a 6-byte surrogate pair,
 //! // which decodes to a 4-byte UTF-8 string.
 //! let data = &[0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81];
-//! assert_eq!(Cow::Borrowed("\U00010401"),
+//! assert_eq!(Cow::Borrowed("\u{10401}"),
 //!            from_cesu8(data).unwrap());
 //! ```
 //!
@@ -99,7 +99,7 @@ const CONT_MASK: u8 = 0b0011_1111u8;
 const TAG_CONT_U8: u8 = 0b1000_0000u8;
 
 /// The CESU-8 data could not be decoded as valid UTF-8 data.
-#[deriving(Show)]
+#[deriving(Copy, Show)]
 pub struct Cesu8DecodingError;
 
 impl Error for Cesu8DecodingError {
@@ -125,7 +125,7 @@ impl Error for Cesu8DecodingError {
 /// // This string is CESU-8 data containing a 6-byte surrogate pair,
 /// // which becomes a 4-byte UTF-8 string.
 /// let data = &[0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81];
-/// assert_eq!(Cow::Borrowed("\U00010401"),
+/// assert_eq!(Cow::Borrowed("\u{10401}"),
 ///            from_cesu8(data).unwrap());
 /// ```
 pub fn from_cesu8(bytes: &[u8]) -> Result<CowString, Cesu8DecodingError> {
@@ -149,7 +149,7 @@ fn test_from_cesu8() {
     // The surrogate-encoded character below is from the ICU library's
     // icu/source/test/testdata/conversion.txt test case.
     let data = &[0x4D, 0xE6, 0x97, 0xA5, 0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81];
-    assert_eq!(Cow::Borrowed("M日\U00010401"),
+    assert_eq!(Cow::Borrowed("M日\u{10401}"),
                from_cesu8(data).unwrap());
 
     // We used to have test data from the CESU-8 specification, but when we
@@ -276,7 +276,7 @@ fn dec_surrogates(second: u8, third: u8, fifth: u8, sixth: u8) -> [u8, ..4] {
 /// // This string is a 4-byte UTF-8 string, which becomes a 6-byte CESU-8
 /// // vector.
 /// assert_eq!(Cow::Borrowed([0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81].as_slice()),
-///            to_cesu8("\U00010401"));
+///            to_cesu8("\u{10401}"));
 /// ```
 pub fn to_cesu8(text: &str) -> CowVec<u8> {
     if is_valid_cesu8(text) {
