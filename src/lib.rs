@@ -85,12 +85,15 @@
 #![feature(macro_rules)]
 #![warn(missing_docs)]
 
+extern crate unicode;
+
 use std::borrow::Cow;
 use std::error::Error;
 use std::result::Result;
 use std::slice;
 use std::str::CowString;
-use std::str::{from_utf8, is_utf8, utf8_char_width, from_utf8_unchecked};
+use std::str::{from_utf8, from_utf8_unchecked};
+use unicode::str::utf8_char_width;
 use std::vec::CowVec;
 
 /// Mask of the value bits of a continuation byte.
@@ -130,12 +133,12 @@ impl Error for Cesu8DecodingError {
 /// ```
 pub fn from_cesu8(bytes: &[u8]) -> Result<CowString, Cesu8DecodingError> {
     match from_utf8(bytes) {
-        Some(str) => Ok(Cow::Borrowed(str)),
-        None => {
+        Ok(str) => Ok(Cow::Borrowed(str)),
+        _ => {
             let mut decoded = Vec::with_capacity(bytes.len());
             if decode_from_iter(&mut decoded, &mut bytes.iter()) {
                 // We can remove this assertion if we trust our decoder.
-                assert!(is_utf8(decoded.as_slice()));
+                assert!(from_utf8(decoded.as_slice()).is_ok());
                 Ok(Cow::Owned(unsafe { String::from_utf8_unchecked(decoded) }))
             } else {
                 Err(Cesu8DecodingError)
@@ -170,7 +173,7 @@ fn test_from_cesu8() {
 }
 
 // Our internal decoder, based on Rust's is_utf8 implementation.
-fn decode_from_iter(decoded: &mut Vec<u8>, iter: &mut slice::Items<u8>) -> bool {
+fn decode_from_iter(decoded: &mut Vec<u8>, iter: &mut slice::Iter<u8>) -> bool {
     macro_rules! err {
         () => { return false }
     }
