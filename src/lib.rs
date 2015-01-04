@@ -102,7 +102,7 @@ const CONT_MASK: u8 = 0b0011_1111u8;
 const TAG_CONT_U8: u8 = 0b1000_0000u8;
 
 /// The CESU-8 data could not be decoded as valid UTF-8 data.
-#[deriving(Copy, Show)]
+#[derive(Copy, Show)]
 pub struct Cesu8DecodingError;
 
 impl Error for Cesu8DecodingError {
@@ -243,12 +243,12 @@ fn decode_from_iter(decoded: &mut Vec<u8>, iter: &mut slice::Iter<u8>) -> bool {
 /// Convert the two trailing bytes from a CESU-8 surrogate to a regular
 /// surrogate value.
 fn dec_surrogate(second: u8, third: u8) -> u32 {
-    0xD000u32 | (second & CONT_MASK) as u32 << 6 | (third & CONT_MASK) as u32
+    0xD000u32 | ((second & CONT_MASK) as u32) << 6 | (third & CONT_MASK) as u32
 }
 
 /// Convert the bytes from a CESU-8 surrogate pair into a valid UTF-8
 /// sequence.  Assumes input is valid.
-fn dec_surrogates(second: u8, third: u8, fifth: u8, sixth: u8) -> [u8, ..4] {
+fn dec_surrogates(second: u8, third: u8, fifth: u8, sixth: u8) -> [u8; 4] {
     // Convert to a 32-bit code point.
     let s1 = dec_surrogate(second, third);
     let s2 = dec_surrogate(fifth, sixth);
@@ -328,7 +328,7 @@ pub fn is_valid_cesu8(text: &str) -> bool {
 }
 
 /// Encode a single surrogate as CESU-8.
-fn enc_surrogate(surrogate: u16) -> [u8, ..3] {
+fn enc_surrogate(surrogate: u16) -> [u8; 3] {
     assert!(0xD800 <= surrogate && surrogate <= 0xDFFF);
     // 1110xxxx 10xxxxxx 10xxxxxx
     [0b11100000  | ((surrogate & 0b11110000_00000000) >> 12) as u8,
