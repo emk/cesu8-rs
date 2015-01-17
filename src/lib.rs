@@ -82,7 +82,7 @@
 //! > * Add 0xDC00 to the low value to form the low surrogate: 0xDC00 +
 //! >   0x0037 = 0xDC37.
 
-#![feature(macro_rules)]
+#![allow(unstable)]
 #![warn(missing_docs)]
 
 extern crate unicode;
@@ -91,7 +91,7 @@ use std::borrow::Cow;
 use std::error::Error;
 use std::result::Result;
 use std::slice;
-use std::str::CowString;
+use std::string::CowString;
 use std::str::{from_utf8, from_utf8_unchecked};
 use unicode::str::utf8_char_width;
 use std::vec::CowVec;
