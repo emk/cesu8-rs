@@ -211,7 +211,7 @@ fn decode_from_iter(decoded: &mut Vec<u8>, iter: &mut slice::Iter<u8>) -> bool {
             let second = next_cont!();
             match w {
                 // Two-byte sequences can be used directly.
-                2 => { decoded.push_all(&[first, second]); }
+                2 => { decoded.extend([first, second].iter().cloned()); }
                 3 => {
                     let third = next_cont!();
                     match (first, second) {
@@ -220,7 +220,8 @@ fn decode_from_iter(decoded: &mut Vec<u8>, iter: &mut slice::Iter<u8>) -> bool {
                         (0xE1 ... 0xEC, 0x80 ... 0xBF) |
                         (0xED         , 0x80 ... 0x9F) |
                         (0xEE ... 0xEF, 0x80 ... 0xBF) => {
-                            decoded.push_all(&[first, second, third])
+                            decoded.extend([first, second, third].iter()
+                                               .cloned())
                         }
                         // First half a surrogate pair, so decode.
                         (0xED         , 0xA0 ... 0xAF) => {
@@ -229,7 +230,7 @@ fn decode_from_iter(decoded: &mut Vec<u8>, iter: &mut slice::Iter<u8>) -> bool {
                             if fifth < 0xB0 || 0xBF < fifth { err!() }
                             let sixth = next_cont!();
                             let s = dec_surrogates(second, third, fifth, sixth);
-                            decoded.push_all(&s);
+                            decoded.extend(s.iter().cloned());
                         }
                         _ => err!()
                     }
@@ -301,12 +302,12 @@ pub fn to_cesu8(text: &str) -> CowVec<u8> {
                 assert!(i + w <= bytes.len());
                 if w != 4 {
                     // Pass through short UTF-8 sequences unmodified.
-                    encoded.push_all(bytes.slice(i, i+w));
+                    encoded.extend(bytes[i..i+w].iter().cloned());
                 } else {
                     // Encode 4-byte sequences as 6 bytes.
-                    let s = unsafe { from_utf8_unchecked(bytes.slice(i, i+w)) };
+                    let s = unsafe { from_utf8_unchecked(&bytes[i..i+w]) };
                     for u in s.utf16_units() {
-                        encoded.push_all(&enc_surrogate(u))
+                        encoded.extend(enc_surrogate(u).iter().cloned());
                     }
                 }
                 i += w;
