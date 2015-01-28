@@ -89,6 +89,7 @@ extern crate unicode;
 
 use std::borrow::Cow;
 use std::error::Error;
+use std::fmt;
 use std::result::Result;
 use std::slice;
 use std::string::CowString;
@@ -107,10 +108,13 @@ pub struct Cesu8DecodingError;
 
 impl Error for Cesu8DecodingError {
     fn description(&self) -> &str { "decoding error" }
-    fn detail(&self) -> Option<String> {
-        Some("could not convert CESU-8 data to UTF-8".to_string())
-    }
     fn cause(&self) -> Option<&Error> { None }
+}
+
+impl fmt::Display for Cesu8DecodingError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "could not convert CESU-8 data to UTF-8")
+    }
 }
 
 /// Convert CESU-8 data to a Rust string, re-encoding only if necessary.
