@@ -82,8 +82,11 @@
 //! > * Add 0xDC00 to the low value to form the low surrogate: 0xDC00 +
 //! >   0x0037 = 0xDC37.
 
-#![allow(unstable)]
 #![warn(missing_docs)]
+
+#![feature(core)]
+#![feature(unicode)]
+#![feature(collections)]
 
 extern crate unicode;
 
@@ -142,7 +145,7 @@ pub fn from_cesu8(bytes: &[u8]) -> Result<CowString, Cesu8DecodingError> {
             let mut decoded = Vec::with_capacity(bytes.len());
             if decode_from_iter(&mut decoded, &mut bytes.iter()) {
                 // We can remove this assertion if we trust our decoder.
-                assert!(from_utf8(decoded.as_slice()).is_ok());
+                assert!(from_utf8(&decoded[]).is_ok());
                 Ok(Cow::Owned(unsafe { String::from_utf8_unchecked(decoded) }))
             } else {
                 Err(Cesu8DecodingError)
@@ -283,7 +286,7 @@ fn dec_surrogates(second: u8, third: u8, fifth: u8, sixth: u8) -> [u8; 4] {
 ///
 /// // This string is a 4-byte UTF-8 string, which becomes a 6-byte CESU-8
 /// // vector.
-/// assert_eq!(Cow::Borrowed([0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81].as_slice()),
+/// assert_eq!(Cow::Borrowed(&[0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81][]),
 ///            to_cesu8("\u{10401}"));
 /// ```
 pub fn to_cesu8(text: &str) -> CowVec<u8> {
