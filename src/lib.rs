@@ -95,10 +95,8 @@ use std::error::Error;
 use std::fmt;
 use std::result::Result;
 use std::slice;
-use std::string::CowString;
 use std::str::{from_utf8, from_utf8_unchecked};
 use unicode::str::utf8_char_width;
-use std::vec::CowVec;
 
 /// Mask of the value bits of a continuation byte.
 const CONT_MASK: u8 = 0b0011_1111u8;
@@ -106,7 +104,7 @@ const CONT_MASK: u8 = 0b0011_1111u8;
 const TAG_CONT_U8: u8 = 0b1000_0000u8;
 
 /// The CESU-8 data could not be decoded as valid UTF-8 data.
-#[derive(Copy, Show)]
+#[derive(Copy, Debug)]
 pub struct Cesu8DecodingError;
 
 impl Error for Cesu8DecodingError {
@@ -138,14 +136,14 @@ impl fmt::Display for Cesu8DecodingError {
 /// assert_eq!(Cow::Borrowed("\u{10401}"),
 ///            from_cesu8(data).unwrap());
 /// ```
-pub fn from_cesu8(bytes: &[u8]) -> Result<CowString, Cesu8DecodingError> {
+pub fn from_cesu8(bytes: &[u8]) -> Result<Cow<str>, Cesu8DecodingError> {
     match from_utf8(bytes) {
         Ok(str) => Ok(Cow::Borrowed(str)),
         _ => {
             let mut decoded = Vec::with_capacity(bytes.len());
             if decode_from_iter(&mut decoded, &mut bytes.iter()) {
                 // We can remove this assertion if we trust our decoder.
-                assert!(from_utf8(&decoded[]).is_ok());
+                assert!(from_utf8(&decoded[..]).is_ok());
                 Ok(Cow::Owned(unsafe { String::from_utf8_unchecked(decoded) }))
             } else {
                 Err(Cesu8DecodingError)
@@ -289,7 +287,7 @@ fn dec_surrogates(second: u8, third: u8, fifth: u8, sixth: u8) -> [u8; 4] {
 /// assert_eq!(Cow::Borrowed(&[0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81][]),
 ///            to_cesu8("\u{10401}"));
 /// ```
-pub fn to_cesu8(text: &str) -> CowVec<u8> {
+pub fn to_cesu8(text: &str) -> Cow<[u8]> {
     if is_valid_cesu8(text) {
         Cow::Borrowed(text.as_bytes())
     } else {
