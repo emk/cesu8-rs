@@ -84,11 +84,7 @@
 
 #![warn(missing_docs)]
 
-#![feature(core)]
-#![feature(unicode)]
 #![feature(collections)]
-
-extern crate unicode;
 
 use std::borrow::Cow;
 use std::error::Error;
@@ -96,7 +92,9 @@ use std::fmt;
 use std::result::Result;
 use std::slice;
 use std::str::{from_utf8, from_utf8_unchecked};
-use unicode::str::utf8_char_width;
+use unicode::utf8_char_width;
+
+mod unicode;
 
 /// Mask of the value bits of a continuation byte.
 const CONT_MASK: u8 = 0b0011_1111u8;
@@ -104,7 +102,7 @@ const CONT_MASK: u8 = 0b0011_1111u8;
 const TAG_CONT_U8: u8 = 0b1000_0000u8;
 
 /// The CESU-8 data could not be decoded as valid UTF-8 data.
-#[derive(Copy, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Cesu8DecodingError;
 
 impl Error for Cesu8DecodingError {
@@ -284,7 +282,7 @@ fn dec_surrogates(second: u8, third: u8, fifth: u8, sixth: u8) -> [u8; 4] {
 ///
 /// // This string is a 4-byte UTF-8 string, which becomes a 6-byte CESU-8
 /// // vector.
-/// assert_eq!(Cow::Borrowed(&[0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81][]),
+/// assert_eq!(Cow::Borrowed(&[0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81]),
 ///            to_cesu8("\u{10401}"));
 /// ```
 pub fn to_cesu8(text: &str) -> Cow<[u8]> {
