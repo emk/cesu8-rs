@@ -1,6 +1,6 @@
 # CESU-8 encoder/decoder for Rust
 
-[![Build Status](https://travis-ci.org/emk/cesu8-rs.svg)](https://travis-ci.org/emk/cesu8-rs)
+[![Build Status](https://travis-ci.org/emk/cesu8-rs.svg)](https://travis-ci.org/emk/cesu8-rs) [![Latest version](https://img.shields.io/crates/v/cesu8.svg)](https://crates.io/crates/cesu8) [![License](https://img.shields.io/crates/l/cesu8.svg)](https://crates.io/crates/cesu8)
 
 [Documentation][apidoc].
 
