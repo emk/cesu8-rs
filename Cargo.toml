@@ -10,3 +10,8 @@ readme = "README.md"
 
 repository = "https://github.com/emk/cesu8-rs"
 documentation = "http://www.rust-ci.org/emk/cesu8-rs/doc/cesu8/"
+
+[features]
+# Allow access to unstable features when being built with a nightly compiler,
+# to keep travis-cargo happy and enable access to benchmarks if we want them.
+unstable = []
