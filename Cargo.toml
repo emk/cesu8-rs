@@ -9,7 +9,7 @@ license = "Apache-2.0/MIT"
 readme = "README.md"
 
 repository = "https://github.com/emk/cesu8-rs"
-documentation = "http://www.rust-ci.org/emk/cesu8-rs/doc/cesu8/"
+documentation = "http://emk.github.io/cesu8-rs/cesu8/index.html"
 
 [features]
 # Allow access to unstable features when being built with a nightly compiler,

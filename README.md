@@ -4,7 +4,7 @@
 
 [Documentation][apidoc].
 
-[apidoc]: http://www.rust-ci.org/emk/cesu8-rs/doc/cesu8/
+[apidoc]: http://emk.github.io/cesu8-rs/cesu8/index.html
 
 Convert between ordinary UTF-8 and [CESU-8][] encodings.
 
