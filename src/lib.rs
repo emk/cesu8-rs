@@ -63,7 +63,7 @@
 //! * 0xD800 to 0xDBFF: First half of surrogate pair.  When encoded as
 //!   CESU-8, these become **1110**1101 **10**100000 **10**000000 to
 //!   **1110**1101 **10**101111 **10**111111.
-//! 
+//!
 //! * 0xDC00 to 0xDFFF: Second half of surrogate pair.  These become
 //!   **1110**1101 **10**110000 **10**000000 to
 //!   **1110**1101 **10**111111 **10**111111.
@@ -72,7 +72,7 @@
 //! code point to UTF-16 conversion process:
 //!
 //! > Consider the encoding of U+10437 (𐐷):
-//! > 
+//! >
 //! > * Subtract 0x10000 from 0x10437. The result is 0x00437, 0000 0000 0100
 //! >   0011 0111.
 //! > * Split this into the high 10-bit value and the low 10-bit value:
@@ -84,7 +84,7 @@
 
 #![warn(missing_docs)]
 
-#![feature(collections)]
+#![feature(str_utf16)]
 
 use std::borrow::Cow;
 use std::error::Error;
@@ -147,7 +147,7 @@ pub fn from_cesu8(bytes: &[u8]) -> Result<Cow<str>, Cesu8DecodingError> {
                 Err(Cesu8DecodingError)
             }
         }
-    }    
+    }
 }
 
 #[test]
@@ -160,16 +160,16 @@ fn test_from_cesu8() {
 
     // We used to have test data from the CESU-8 specification, but when we
     // worked it through manually, we got the wrong answer:
-    // 
+    //
     // Input: [0xED, 0xAE, 0x80, 0xED, 0xB0, 0x80]
     // Binary: 11101101 10101110 10000000 11101101 10110000 10000000
-    // 
+    //
     // 0b1101_101110_000000 -> 0xDB80
     // 0b1101_110000_000000 -> 0xDC00
-    // 
+    //
     // ((0xDB80 - 0xD800) << 10) | (0xDC00 - 0xDC00) -> 0xE0000
     // 0x10000 + 0xE0000 -> 0xF0000
-    // 
+    //
     // The spec claims that we are supposed to get 0x10000, not 0xF0000.
     // Since I can't reconcile this example data with the text of the
     // specification, I decided to use a test character from ICU instead.
@@ -263,7 +263,7 @@ fn dec_surrogates(second: u8, third: u8, fifth: u8, sixth: u8) -> [u8; 4] {
     assert!(0x010000 <= c && c <= 0x10FFFF);
 
     // Convert to UTF-8.
-    // 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx 
+    // 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
     [0b1111_0000u8 | ((c & 0b1_1100_0000_0000_0000_0000) >> 18) as u8,
      TAG_CONT_U8   | ((c & 0b0_0011_1111_0000_0000_0000) >> 12) as u8,
      TAG_CONT_U8   | ((c & 0b0_0000_0000_1111_1100_0000) >>  6) as u8,
