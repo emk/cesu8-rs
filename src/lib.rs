@@ -84,7 +84,6 @@
 
 #![warn(missing_docs)]
 
-#![feature(collections)]
 
 use std::borrow::Cow;
 use std::error::Error;
@@ -309,9 +308,12 @@ pub fn to_cesu8(text: &str) -> Cow<[u8]> {
                 } else {
                     // Encode 4-byte sequences as 6 bytes.
                     let s = unsafe { from_utf8_unchecked(&bytes[i..i+w]) };
-                    for u in s.utf16_units() {
-                        encoded.extend(enc_surrogate(u).iter().cloned());
-                    }
+                    let c = s.chars().next().unwrap() as u32 - 0x10000;
+                    let mut s: [u16; 2] = [0; 2];
+                    s[0] = ((c >> 10) as u16)   | 0xD800;
+                    s[1] = ((c & 0x3FF) as u16) | 0xDC00;
+                    encoded.extend(enc_surrogate(s[0]).iter().cloned());
+                    encoded.extend(enc_surrogate(s[1]).iter().cloned());
                 }
                 i += w;
             }
