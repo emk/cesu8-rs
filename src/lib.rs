@@ -201,8 +201,8 @@ fn from_cesu8_internal(bytes: &[u8], variant: Variant) ->
 fn test_from_cesu8() {
     // The surrogate-encoded character below is from the ICU library's
     // icu/source/test/testdata/conversion.txt test case.
-    let data = &[0x4D, 0xE6, 0x97, 0xA5, 0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81];
-    assert_eq!(Cow::Borrowed("M日\u{10401}"),
+    let data = &[0x4D, 0xE6, 0x97, 0xA5, 0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81, 0x7F];
+    assert_eq!(Cow::Borrowed("M日\u{10401}\u{7F}"),
                from_cesu8(data).unwrap());
 
     // We used to have test data from the CESU-8 specification, but when we
@@ -259,7 +259,7 @@ fn decode_from_iter(
         if variant == Variant::Java && first == 0 {
             // Java's modified UTF-8 should never contain \0 directly.
             err!();
-        } else if first < 127 {
+        } else if first < 128 {
             // Pass ASCII through directly.
             decoded.push(first);
         } else if first == 0xc0 && variant == Variant::Java {
