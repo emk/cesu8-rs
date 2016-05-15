@@ -20,7 +20,11 @@ This encoding is sometimes needed when working with Java, Oracle or MySQL,
 and when trying to store emoji, hieroglyphs, or other characters on the
 Supplementary Multilingual Plane or the Supplementary Ideographic Plane.
 
+We also support Java's [Modified UTF-8][] encoding, which encodes `\0`
+using a multi-byte UTF-8 sequence.
+
 [CESU-8]: http://www.unicode.org/reports/tr26/tr26-2.html
+[Modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
 
 ## License
 
