@@ -51,8 +51,8 @@
 //!
 //! Java uses the CESU-8 encoding as described above, but with one
 //! difference: The null character U+0000 is represented as an overlong
-//! UTF-8 sequence.  This is not currently supported by this library, but
-//! pull requests to add `from_java_cesu8` and `to_java_cesu8` are welcome.
+//! UTF-8 sequence `C0 80`. This is supported by the `from_java_cesu8` and
+//! `to_java_cesu8` methods.
 //!
 //! ### Surrogate pairs and UTF-8
 //!
@@ -134,13 +134,48 @@ impl fmt::Display for Cesu8DecodingError {
 ///            from_cesu8(data).unwrap());
 /// ```
 pub fn from_cesu8(bytes: &[u8]) -> Result<Cow<str>, Cesu8DecodingError> {
+    from_cesu8_internal(bytes, /*is_java*/false)
+}
+
+/// Convert Java's modified UTF-8 data to a Rust string, re-encoding only if
+/// necessary. Returns an error if the data cannot be represented as valid
+/// UTF-8.
+///
+/// ```
+/// use std::borrow::Cow;
+/// use cesu8::from_java_cesu8;
+///
+/// // This string is valid as UTF-8 or modified UTF-8, so it doesn't change,
+/// // and we can convert it without allocating memory.
+/// assert_eq!(Cow::Borrowed("aé日"),
+///            from_java_cesu8("aé日".as_bytes()).unwrap());
+///
+/// // This string is modified UTF-8 data containing a 6-byte surrogate pair,
+/// // which becomes a 4-byte UTF-8 string.
+/// let data = &[0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81];
+/// assert_eq!(Cow::Borrowed("\u{10401}"),
+///            from_java_cesu8(data).unwrap());
+///
+/// // This string is modified UTF-8 data containing null code-points.
+/// let data = &[0xC0, 0x80, 0xC0, 0x80];
+/// assert_eq!(Cow::Borrowed("\0\0"),
+///            from_java_cesu8(data).unwrap());
+/// ```
+
+pub fn from_java_cesu8(bytes: &[u8]) -> Result<Cow<str>, Cesu8DecodingError> {
+    from_cesu8_internal(bytes, /*is_java*/true)
+}
+
+
+
+fn from_cesu8_internal(bytes: &[u8], is_java: bool) -> Result<Cow<str>, Cesu8DecodingError> {
     match from_utf8(bytes) {
         Ok(str) => Ok(Cow::Borrowed(str)),
         _ => {
             let mut decoded = Vec::with_capacity(bytes.len());
-            if decode_from_iter(&mut decoded, &mut bytes.iter()) {
+            if decode_from_iter(&mut decoded, &mut bytes.iter(), is_java) {
                 // We can remove this assertion if we trust our decoder.
-                assert!(from_utf8(&decoded[..]).is_ok());
+                debug_assert!(from_utf8(&decoded[..]).is_ok());
                 Ok(Cow::Owned(unsafe { String::from_utf8_unchecked(decoded) }))
             } else {
                 Err(Cesu8DecodingError)
@@ -148,6 +183,7 @@ pub fn from_cesu8(bytes: &[u8]) -> Result<Cow<str>, Cesu8DecodingError> {
         }
     }
 }
+
 
 #[test]
 fn test_from_cesu8() {
@@ -175,7 +211,7 @@ fn test_from_cesu8() {
 }
 
 // Our internal decoder, based on Rust's is_utf8 implementation.
-fn decode_from_iter(decoded: &mut Vec<u8>, iter: &mut slice::Iter<u8>) -> bool {
+fn decode_from_iter(decoded: &mut Vec<u8>, iter: &mut slice::Iter<u8>, is_java: bool) -> bool {
     macro_rules! err {
         () => { return false }
     }
@@ -205,9 +241,17 @@ fn decode_from_iter(decoded: &mut Vec<u8>, iter: &mut slice::Iter<u8>) -> bool {
             None => return true
         };
 
-        if first < 127 {
+        if is_java && first == 0 {
+            // Java's modified UTF-8 should never contain \0 directly.
+            err!();
+        } else if first < 127 {
             // Pass ASCII through directly.
             decoded.push(first);
+        } else if first == 0xc0 && is_java {
+            match next!() {
+                0x80 => decoded.push(0),
+                _ => err!(),
+            }
         } else {
             let w = utf8_char_width(first);
             let second = next_cont!();
@@ -288,38 +332,73 @@ pub fn to_cesu8(text: &str) -> Cow<[u8]> {
     if is_valid_cesu8(text) {
         Cow::Borrowed(text.as_bytes())
     } else {
-        let bytes = text.as_bytes();
-        let mut encoded = Vec::with_capacity(bytes.len() + bytes.len() >> 2);
-        let mut i = 0;
-        while i < bytes.len() {
-            let b = bytes[i];
-            if b < 128 {
-                // Pass ASCII through quickly.
-                encoded.push(b);
-                i += 1;
-            } else {
-                // Figure out how many bytes we need for this character.
-                let w = utf8_char_width(b);
-                assert!(w <= 4);
-                assert!(i + w <= bytes.len());
-                if w != 4 {
-                    // Pass through short UTF-8 sequences unmodified.
-                    encoded.extend(bytes[i..i+w].iter().cloned());
-                } else {
-                    // Encode 4-byte sequences as 6 bytes.
-                    let s = unsafe { from_utf8_unchecked(&bytes[i..i+w]) };
-                    let c = s.chars().next().unwrap() as u32 - 0x10000;
-                    let mut s: [u16; 2] = [0; 2];
-                    s[0] = ((c >> 10) as u16)   | 0xD800;
-                    s[1] = ((c & 0x3FF) as u16) | 0xDC00;
-                    encoded.extend(enc_surrogate(s[0]).iter().cloned());
-                    encoded.extend(enc_surrogate(s[1]).iter().cloned());
-                }
-                i += w;
-            }
-        }
-        Cow::Owned(encoded)
+        Cow::Owned(to_cesu8_internal(text, /*is_java*/false))
     }
+}
+
+/// Convert a Rust `&str` to Java's modified UTF-8 bytes.
+///
+/// ```
+/// use std::borrow::Cow;
+/// use cesu8::to_java_cesu8;
+///
+/// // This string is valid as UTF-8 or CESU-8, so it doesn't change,
+/// // and we can convert it without allocating memory.
+/// assert_eq!(Cow::Borrowed("aé日".as_bytes()), to_java_cesu8("aé日"));
+///
+/// // This string is a 4-byte UTF-8 string, which becomes a 6-byte modified
+/// // UTF-8 vector.
+/// assert_eq!(Cow::Borrowed(&[0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81]),
+///            to_java_cesu8("\u{10401}"));
+///
+/// // This string contains null, which becomes 2-byte modified UTF-8 encoding
+/// assert_eq!(Cow::Borrowed(&[0xC0, 0x80, 0xC0, 0x80]),
+///            to_java_cesu8("\0\0"));
+/// ```
+pub fn to_java_cesu8(text: &str) -> Cow<[u8]> {
+    if is_valid_java_cesu8(text) {
+        Cow::Borrowed(text.as_bytes())
+    } else {
+        Cow::Owned(to_cesu8_internal(text, /*is_java*/true))
+    }
+}
+
+fn to_cesu8_internal(text: &str, is_java: bool) -> Vec<u8> {
+    let bytes = text.as_bytes();
+    let mut encoded = Vec::with_capacity(bytes.len() + bytes.len() >> 2);
+    let mut i = 0;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if is_java && b == 0 {
+            encoded.push(0xc0);
+            encoded.push(0x80);
+            i += 1;
+        } else if b < 128 {
+            // Pass ASCII through quickly.
+            encoded.push(b);
+            i += 1;
+        } else {
+            // Figure out how many bytes we need for this character.
+            let w = utf8_char_width(b);
+            assert!(w <= 4);
+            assert!(i + w <= bytes.len());
+            if w != 4 {
+                // Pass through short UTF-8 sequences unmodified.
+                encoded.extend(bytes[i..i+w].iter().cloned());
+            } else {
+                // Encode 4-byte sequences as 6 bytes.
+                let s = unsafe { from_utf8_unchecked(&bytes[i..i+w]) };
+                let c = s.chars().next().unwrap() as u32 - 0x10000;
+                let mut s: [u16; 2] = [0; 2];
+                s[0] = ((c >> 10) as u16)   | 0xD800;
+                s[1] = ((c & 0x3FF) as u16) | 0xDC00;
+                encoded.extend(enc_surrogate(s[0]).iter().cloned());
+                encoded.extend(enc_surrogate(s[1]).iter().cloned());
+            }
+            i += w;
+        }
+    }
+    encoded
 }
 
 /// Check whether a Rust string contains valid CESU-8 data.
@@ -332,6 +411,22 @@ pub fn is_valid_cesu8(text: &str) -> bool {
     }
     true
 }
+
+/// Check whether a Rust string contains valid Java's modified UTF-8 data.
+pub fn is_valid_java_cesu8(text: &str) -> bool {
+    !text.contains('\0') && is_valid_cesu8(text)
+}
+
+#[test]
+fn test_valid_cesu8() {
+    assert!(is_valid_cesu8("aé日"));
+    assert!(is_valid_java_cesu8("aé日"));
+    assert!(!is_valid_cesu8("\u{10401}"));
+    assert!(!is_valid_java_cesu8("\u{10401}"));
+    assert!(is_valid_cesu8("\0\0"));
+    assert!(!is_valid_java_cesu8("\0\0"));
+}
+
 
 /// Encode a single surrogate as CESU-8.
 fn enc_surrogate(surrogate: u16) -> [u8; 3] {
