@@ -172,12 +172,9 @@ pub fn from_cesu8(bytes: &[u8]) -> Result<Cow<str>, Cesu8DecodingError> {
 /// assert_eq!(Cow::Borrowed("\0\0"),
 ///            from_java_cesu8(data).unwrap());
 /// ```
-
 pub fn from_java_cesu8(bytes: &[u8]) -> Result<Cow<str>, Cesu8DecodingError> {
     from_cesu8_internal(bytes, Variant::Java)
 }
-
-
 
 /// Do the actual work of decoding.
 fn from_cesu8_internal(bytes: &[u8], variant: Variant) ->
@@ -187,8 +184,10 @@ fn from_cesu8_internal(bytes: &[u8], variant: Variant) ->
         Ok(str) => Ok(Cow::Borrowed(str)),
         _ => {
             let mut decoded = Vec::with_capacity(bytes.len());
-                // We can remove this assertion if we trust our decoder.
             if decode_from_iter(&mut decoded, &mut bytes.iter(), variant) {
+                // Keep this assertion in debug mode only.  It's important
+                // that this assertion is true, because Rust assumes that
+                // all UTF-8 strings are valid.
                 debug_assert!(from_utf8(&decoded[..]).is_ok());
                 Ok(Cow::Owned(unsafe { String::from_utf8_unchecked(decoded) }))
             } else {
@@ -197,7 +196,6 @@ fn from_cesu8_internal(bytes: &[u8], variant: Variant) ->
         }
     }
 }
-
 
 #[test]
 fn test_from_cesu8() {
