@@ -115,6 +115,17 @@ impl fmt::Display for Cesu8DecodingError {
     }
 }
 
+/// Which variant of the encoding are we working with?
+#[derive(PartialEq, Eq)]
+enum Variant {
+    /// Regular CESU-8, with '\0' represented by itself.
+    Standard,
+    /// This is technically Java's "Modified UTF-8", which is supposedly
+    /// like CESU-8, except that it UTF-8 encodes the '\0' byte.  I'm sure
+    /// it seemed like a good idea at the time.
+    Java,
+}
+
 /// Convert CESU-8 data to a Rust string, re-encoding only if necessary.
 /// Returns an error if the data cannot be represented as valid UTF-8.
 ///
@@ -134,7 +145,7 @@ impl fmt::Display for Cesu8DecodingError {
 ///            from_cesu8(data).unwrap());
 /// ```
 pub fn from_cesu8(bytes: &[u8]) -> Result<Cow<str>, Cesu8DecodingError> {
-    from_cesu8_internal(bytes, /*is_java*/false)
+    from_cesu8_internal(bytes, Variant::Standard)
 }
 
 /// Convert Java's modified UTF-8 data to a Rust string, re-encoding only if
@@ -163,18 +174,21 @@ pub fn from_cesu8(bytes: &[u8]) -> Result<Cow<str>, Cesu8DecodingError> {
 /// ```
 
 pub fn from_java_cesu8(bytes: &[u8]) -> Result<Cow<str>, Cesu8DecodingError> {
-    from_cesu8_internal(bytes, /*is_java*/true)
+    from_cesu8_internal(bytes, Variant::Java)
 }
 
 
 
-fn from_cesu8_internal(bytes: &[u8], is_java: bool) -> Result<Cow<str>, Cesu8DecodingError> {
+/// Do the actual work of decoding.
+fn from_cesu8_internal(bytes: &[u8], variant: Variant) ->
+    Result<Cow<str>, Cesu8DecodingError>
+{
     match from_utf8(bytes) {
         Ok(str) => Ok(Cow::Borrowed(str)),
         _ => {
             let mut decoded = Vec::with_capacity(bytes.len());
-            if decode_from_iter(&mut decoded, &mut bytes.iter(), is_java) {
                 // We can remove this assertion if we trust our decoder.
+            if decode_from_iter(&mut decoded, &mut bytes.iter(), variant) {
                 debug_assert!(from_utf8(&decoded[..]).is_ok());
                 Ok(Cow::Owned(unsafe { String::from_utf8_unchecked(decoded) }))
             } else {
@@ -211,7 +225,10 @@ fn test_from_cesu8() {
 }
 
 // Our internal decoder, based on Rust's is_utf8 implementation.
-fn decode_from_iter(decoded: &mut Vec<u8>, iter: &mut slice::Iter<u8>, is_java: bool) -> bool {
+fn decode_from_iter(
+    decoded: &mut Vec<u8>, iter: &mut slice::Iter<u8>, variant: Variant)
+    -> bool
+{
     macro_rules! err {
         () => { return false }
     }
@@ -241,13 +258,13 @@ fn decode_from_iter(decoded: &mut Vec<u8>, iter: &mut slice::Iter<u8>, is_java: 
             None => return true
         };
 
-        if is_java && first == 0 {
+        if variant == Variant::Java && first == 0 {
             // Java's modified UTF-8 should never contain \0 directly.
             err!();
         } else if first < 127 {
             // Pass ASCII through directly.
             decoded.push(first);
-        } else if first == 0xc0 && is_java {
+        } else if first == 0xc0 && variant == Variant::Java {
             match next!() {
                 0x80 => decoded.push(0),
                 _ => err!(),
@@ -332,7 +349,7 @@ pub fn to_cesu8(text: &str) -> Cow<[u8]> {
     if is_valid_cesu8(text) {
         Cow::Borrowed(text.as_bytes())
     } else {
-        Cow::Owned(to_cesu8_internal(text, /*is_java*/false))
+        Cow::Owned(to_cesu8_internal(text, Variant::Standard))
     }
 }
 
@@ -359,17 +376,17 @@ pub fn to_java_cesu8(text: &str) -> Cow<[u8]> {
     if is_valid_java_cesu8(text) {
         Cow::Borrowed(text.as_bytes())
     } else {
-        Cow::Owned(to_cesu8_internal(text, /*is_java*/true))
+        Cow::Owned(to_cesu8_internal(text, Variant::Java))
     }
 }
 
-fn to_cesu8_internal(text: &str, is_java: bool) -> Vec<u8> {
+fn to_cesu8_internal(text: &str, variant: Variant) -> Vec<u8> {
     let bytes = text.as_bytes();
     let mut encoded = Vec::with_capacity(bytes.len() + bytes.len() >> 2);
     let mut i = 0;
     while i < bytes.len() {
         let b = bytes[i];
-        if is_java && b == 0 {
+        if variant == Variant::Java && b == 0 {
             encoded.push(0xc0);
             encoded.push(0x80);
             i += 1;
