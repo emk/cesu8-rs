@@ -299,19 +299,19 @@ fn decode_from_iter(decoded: &mut Vec<u8>, iter: &mut slice::Iter<u8>, variant: 
                     let third = next_cont!();
                     match (first, second) {
                         // These are valid UTF-8, so pass them through.
-                        (0xE0, 0xA0...0xBF)
-                        | (0xE1...0xEC, 0x80...0xBF)
-                        | (0xED, 0x80...0x9F)
-                        | (0xEE...0xEF, 0x80...0xBF) => {
+                        (0xE0, 0xA0..=0xBF)
+                        | (0xE1..=0xEC, 0x80..=0xBF)
+                        | (0xED, 0x80..=0x9F)
+                        | (0xEE..=0xEF, 0x80..=0xBF) => {
                             decoded.extend([first, second, third].iter().cloned())
                         }
                         // First half a surrogate pair, so decode.
-                        (0xED, 0xA0...0xAF) => {
+                        (0xED, 0xA0..=0xAF) => {
                             if next!() != 0xED {
                                 err!()
                             }
                             let fifth = next_cont!();
-                            if fifth < 0xB0 || 0xBF < fifth {
+                            if !(0xB0..=0xBF).contains(&fifth) {
                                 err!()
                             }
                             let sixth = next_cont!();
@@ -343,7 +343,7 @@ fn dec_surrogates(second: u8, third: u8, fifth: u8, sixth: u8) -> [u8; 4] {
     //println!("{:0>8b} {:0>8b} {:0>8b} -> {:0>16b}", 0xEDu8, second, third, s1);
     //println!("{:0>8b} {:0>8b} {:0>8b} -> {:0>16b}", 0xEDu8, fifth, sixth, s2);
     //println!("-> {:0>32b}", c);
-    assert!(0x010000 <= c && c <= 0x10FFFF);
+    assert!((0x010000..=0x10FFFF).contains(&c));
 
     // Convert to UTF-8.
     // 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
@@ -407,7 +407,7 @@ pub fn to_java_cesu8(text: &str) -> Cow<[u8]> {
 
 fn to_cesu8_internal(text: &str, variant: Variant) -> Vec<u8> {
     let bytes = text.as_bytes();
-    let mut encoded = Vec::with_capacity(bytes.len() + bytes.len() >> 2);
+    let mut encoded = Vec::with_capacity((bytes.len() + bytes.len()) >> 2);
     let mut i = 0;
     while i < bytes.len() {
         let b = bytes[i];
@@ -475,11 +475,11 @@ fn test_valid_cesu8() {
 
 /// Encode a single surrogate as CESU-8.
 fn enc_surrogate(surrogate: u16) -> [u8; 3] {
-    assert!(0xD800 <= surrogate && surrogate <= 0xDFFF);
+    assert!((0xD800..=0xDFFF).contains(&surrogate));
     // 1110xxxx 10xxxxxx 10xxxxxx
     [
-        0b11100000 | ((surrogate & 0b11110000_00000000) >> 12) as u8,
-        TAG_CONT_U8 | ((surrogate & 0b00001111_11000000) >> 6) as u8,
-        TAG_CONT_U8 | (surrogate & 0b00000000_00111111) as u8,
+        0b11100000 | ((surrogate & 0b1111_0000_0000_0000) >> 12) as u8,
+        TAG_CONT_U8 | ((surrogate & 0b0000_1111_1100_0000) >> 6) as u8,
+        TAG_CONT_U8 | (surrogate & 0b0000_0000_0011_1111) as u8,
     ]
 }
