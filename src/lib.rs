@@ -7,7 +7,6 @@
 // option. This file may not be copied, modified, or distributed except
 // according to those terms.
 
-
 //! A simple library implementing the [CESU-8 compatibility encoding
 //! scheme](http://www.unicode.org/reports/tr26/tr26-2.html).  This is a
 //! non-standard variant of UTF-8 that is used internally by some systems
@@ -82,16 +81,29 @@
 //! > * Add 0xDC00 to the low value to form the low surrogate: 0xDC00 +
 //! >   0x0037 = 0xDC37.
 
+#![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 
+extern crate alloc;
 
-use std::borrow::Cow;
-use std::error::Error;
-use std::fmt;
-use std::result::Result;
-use std::slice;
-use std::str::{from_utf8, from_utf8_unchecked};
+use alloc::{borrow::Cow, string::String, vec::Vec};
 use unicode::utf8_char_width;
+
+#[cfg(not(feature = "std"))]
+use core::{
+    fmt,
+    result::Result,
+    slice,
+    str::{from_utf8, from_utf8_unchecked},
+};
+
+#[cfg(feature = "std")]
+use std::{
+    fmt,
+    result::Result,
+    slice,
+    str::{from_utf8, from_utf8_unchecked},
+};
 
 mod unicode;
 
@@ -104,9 +116,14 @@ const TAG_CONT_U8: u8 = 0b1000_0000u8;
 #[derive(Clone, Copy, Debug)]
 pub struct Cesu8DecodingError;
 
-impl Error for Cesu8DecodingError {
-    fn description(&self) -> &str { "decoding error" }
-    fn cause(&self) -> Option<&Error> { None }
+#[cfg(feature = "std")]
+impl std::error::Error for Cesu8DecodingError {
+    fn description(&self) -> &str {
+        "decoding error"
+    }
+    fn cause(&self) -> Option<&dyn std::error::Error> {
+        None
+    }
 }
 
 impl fmt::Display for Cesu8DecodingError {
@@ -177,9 +194,7 @@ pub fn from_java_cesu8(bytes: &[u8]) -> Result<Cow<str>, Cesu8DecodingError> {
 }
 
 /// Do the actual work of decoding.
-fn from_cesu8_internal(bytes: &[u8], variant: Variant) ->
-    Result<Cow<str>, Cesu8DecodingError>
-{
+fn from_cesu8_internal(bytes: &[u8], variant: Variant) -> Result<Cow<str>, Cesu8DecodingError> {
     match from_utf8(bytes) {
         Ok(str) => Ok(Cow::Borrowed(str)),
         _ => {
@@ -201,9 +216,13 @@ fn from_cesu8_internal(bytes: &[u8], variant: Variant) ->
 fn test_from_cesu8() {
     // The surrogate-encoded character below is from the ICU library's
     // icu/source/test/testdata/conversion.txt test case.
-    let data = &[0x4D, 0xE6, 0x97, 0xA5, 0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81, 0x7F];
-    assert_eq!(Cow::Borrowed("M日\u{10401}\u{7F}"),
-               from_cesu8(data).unwrap());
+    let data = &[
+        0x4D, 0xE6, 0x97, 0xA5, 0xED, 0xA0, 0x81, 0xED, 0xB0, 0x81, 0x7F,
+    ];
+    assert_eq!(
+        Cow::Borrowed("M日\u{10401}\u{7F}"),
+        from_cesu8(data).unwrap()
+    );
 
     // We used to have test data from the CESU-8 specification, but when we
     // worked it through manually, we got the wrong answer:
@@ -223,29 +242,30 @@ fn test_from_cesu8() {
 }
 
 // Our internal decoder, based on Rust's is_utf8 implementation.
-fn decode_from_iter(
-    decoded: &mut Vec<u8>, iter: &mut slice::Iter<u8>, variant: Variant)
-    -> bool
-{
+fn decode_from_iter(decoded: &mut Vec<u8>, iter: &mut slice::Iter<u8>, variant: Variant) -> bool {
     macro_rules! err {
-        () => { return false }
+        () => {
+            return false
+        };
     }
     macro_rules! next {
         () => {
             match iter.next() {
                 Some(a) => *a,
                 // We needed data, but there was none: error!
-                None => err!()
+                None => err!(),
             }
-        }
+        };
     }
     macro_rules! next_cont {
-        () => {
-            {
-                let byte = next!();
-                if (byte) & !CONT_MASK == TAG_CONT_U8 { byte } else { err!() }
+        () => {{
+            let byte = next!();
+            if (byte) & !CONT_MASK == TAG_CONT_U8 {
+                byte
+            } else {
+                err!()
             }
-        }
+        }};
     }
 
     loop {
@@ -253,7 +273,7 @@ fn decode_from_iter(
             Some(&b) => b,
             // We're at the end of the iterator and a codepoint boundary at
             // the same time, so this string is valid.
-            None => return true
+            None => return true,
         };
 
         if variant == Variant::Java && first == 0 {
@@ -272,31 +292,36 @@ fn decode_from_iter(
             let second = next_cont!();
             match w {
                 // Two-byte sequences can be used directly.
-                2 => { decoded.extend([first, second].iter().cloned()); }
+                2 => {
+                    decoded.extend([first, second].iter().cloned());
+                }
                 3 => {
                     let third = next_cont!();
                     match (first, second) {
                         // These are valid UTF-8, so pass them through.
-                        (0xE0         , 0xA0 ... 0xBF) |
-                        (0xE1 ... 0xEC, 0x80 ... 0xBF) |
-                        (0xED         , 0x80 ... 0x9F) |
-                        (0xEE ... 0xEF, 0x80 ... 0xBF) => {
-                            decoded.extend([first, second, third].iter()
-                                               .cloned())
+                        (0xE0, 0xA0...0xBF)
+                        | (0xE1...0xEC, 0x80...0xBF)
+                        | (0xED, 0x80...0x9F)
+                        | (0xEE...0xEF, 0x80...0xBF) => {
+                            decoded.extend([first, second, third].iter().cloned())
                         }
                         // First half a surrogate pair, so decode.
-                        (0xED         , 0xA0 ... 0xAF) => {
-                            if next!() != 0xED { err!() }
+                        (0xED, 0xA0...0xAF) => {
+                            if next!() != 0xED {
+                                err!()
+                            }
                             let fifth = next_cont!();
-                            if fifth < 0xB0 || 0xBF < fifth { err!() }
+                            if fifth < 0xB0 || 0xBF < fifth {
+                                err!()
+                            }
                             let sixth = next_cont!();
                             let s = dec_surrogates(second, third, fifth, sixth);
                             decoded.extend(s.iter().cloned());
                         }
-                        _ => err!()
+                        _ => err!(),
                     }
                 }
-                _ => err!()
+                _ => err!(),
             }
         }
     }
@@ -322,10 +347,12 @@ fn dec_surrogates(second: u8, third: u8, fifth: u8, sixth: u8) -> [u8; 4] {
 
     // Convert to UTF-8.
     // 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-    [0b1111_0000u8 | ((c & 0b1_1100_0000_0000_0000_0000) >> 18) as u8,
-     TAG_CONT_U8   | ((c & 0b0_0011_1111_0000_0000_0000) >> 12) as u8,
-     TAG_CONT_U8   | ((c & 0b0_0000_0000_1111_1100_0000) >>  6) as u8,
-     TAG_CONT_U8   | ((c & 0b0_0000_0000_0000_0011_1111)      ) as u8]
+    [
+        0b1111_0000u8 | ((c & 0b1_1100_0000_0000_0000_0000) >> 18) as u8,
+        TAG_CONT_U8 | ((c & 0b0_0011_1111_0000_0000_0000) >> 12) as u8,
+        TAG_CONT_U8 | ((c & 0b0_0000_0000_1111_1100_0000) >> 6) as u8,
+        TAG_CONT_U8 | (c & 0b0_0000_0000_0000_0011_1111) as u8,
+    ]
 }
 
 /// Convert a Rust `&str` to CESU-8 bytes.
@@ -399,13 +426,13 @@ fn to_cesu8_internal(text: &str, variant: Variant) -> Vec<u8> {
             assert!(i + w <= bytes.len());
             if w != 4 {
                 // Pass through short UTF-8 sequences unmodified.
-                encoded.extend(bytes[i..i+w].iter().cloned());
+                encoded.extend(bytes[i..i + w].iter().cloned());
             } else {
                 // Encode 4-byte sequences as 6 bytes.
-                let s = unsafe { from_utf8_unchecked(&bytes[i..i+w]) };
+                let s = unsafe { from_utf8_unchecked(&bytes[i..i + w]) };
                 let c = s.chars().next().unwrap() as u32 - 0x10000;
                 let mut s: [u16; 2] = [0; 2];
-                s[0] = ((c >> 10) as u16)   | 0xD800;
+                s[0] = ((c >> 10) as u16) | 0xD800;
                 s[1] = ((c & 0x3FF) as u16) | 0xDC00;
                 encoded.extend(enc_surrogate(s[0]).iter().cloned());
                 encoded.extend(enc_surrogate(s[1]).iter().cloned());
@@ -421,8 +448,12 @@ pub fn is_valid_cesu8(text: &str) -> bool {
     // We rely on the fact that Rust strings are guaranteed to be valid
     // UTF-8.
     for b in text.bytes() {
-        if (b & !CONT_MASK) == TAG_CONT_U8 { continue; }
-        if utf8_char_width(b) > 3 { return false; }
+        if (b & !CONT_MASK) == TAG_CONT_U8 {
+            continue;
+        }
+        if utf8_char_width(b) > 3 {
+            return false;
+        }
     }
     true
 }
@@ -442,12 +473,13 @@ fn test_valid_cesu8() {
     assert!(!is_valid_java_cesu8("\0\0"));
 }
 
-
 /// Encode a single surrogate as CESU-8.
 fn enc_surrogate(surrogate: u16) -> [u8; 3] {
     assert!(0xD800 <= surrogate && surrogate <= 0xDFFF);
     // 1110xxxx 10xxxxxx 10xxxxxx
-    [0b11100000  | ((surrogate & 0b11110000_00000000) >> 12) as u8,
-     TAG_CONT_U8 | ((surrogate & 0b00001111_11000000) >>  6) as u8,
-     TAG_CONT_U8 | ((surrogate & 0b00000000_00111111)      ) as u8]
+    [
+        0b11100000 | ((surrogate & 0b11110000_00000000) >> 12) as u8,
+        TAG_CONT_U8 | ((surrogate & 0b00001111_11000000) >> 6) as u8,
+        TAG_CONT_U8 | (surrogate & 0b00000000_00111111) as u8,
+    ]
 }

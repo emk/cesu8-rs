@@ -10,7 +10,7 @@ Convert between ordinary UTF-8 and [CESU-8][] encodings.
 
 CESU-8 encodes characters outside the Basic Multilingual Plane as two
 UTF-16 surrogate chacaters, which are then further re-encoded as invalid,
-3-byte UTF-8 characters.  This means that 4-byte UTF-8 sequences become
+3-byte UTF-8 characters. This means that 4-byte UTF-8 sequences become
 6-byte CESU-8 sequences.
 
 **Note that CESU-8 is only intended for internal use within tightly-coupled
@@ -23,8 +23,16 @@ Supplementary Multilingual Plane or the Supplementary Ideographic Plane.
 We also support Java's [Modified UTF-8][] encoding, which encodes `\0`
 using a multi-byte UTF-8 sequence.
 
-[CESU-8]: http://www.unicode.org/reports/tr26/tr26-2.html
-[Modified UTF-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
+## Features
+
+Below are the available cargo feature flags.
+
+- `std` - use the standard library (enabled by default).
+- `unstable` - Allow access to unstable features when being built with a nightly compiler,
+  to keep travis-cargo happy and enable access to benchmarks if we want them.
+
+[cesu-8]: http://www.unicode.org/reports/tr26/tr26-2.html
+[modified utf-8]: https://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8
 
 ## License
 
